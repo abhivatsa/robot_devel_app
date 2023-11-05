@@ -1,5 +1,5 @@
-#ifndef INSTRUMENT_MOTION_PLANNER_H
-#define INSTRUMENT_MOTION_PLANNER_H
+#ifndef ROBOT_MOTION_PLANNER_H
+#define ROBOT_MOTION_PLANNER_H
 
 #include <cmath>
 #include <unistd.h>
@@ -28,7 +28,8 @@ enum class CommandType
     NONE,
     JOG,
     HAND_CONTROL,
-    TEACH_MODE
+    TEACH_MODE,
+    MOVE_HOME
 };
 
 enum class OperationModeState
@@ -143,7 +144,7 @@ struct CommandData
         int type;
         double goal_position[3];
     } move_to_data;
-    
+
 };
 
 struct ForceDimData

@@ -1,5 +1,5 @@
-#include "instrument_motion_planner.h"
-#include "instrument_jog.h"
+#include "robot_motion_planner.h"
+#include "robot_jog.h"
 #include "sterile_engagement.h"
 #include <stdlib.h>
 #include <fcntl.h>
@@ -195,13 +195,30 @@ int main()
     return 0;
 }
 
-int write_to_drive(double joint_pos[3], double joint_vel[3])
+int write_pos_to_drive(double joint_pos[6])
 {
-    for (unsigned int jnt_ctr = 0; jnt_ctr < 3; jnt_ctr++)
+    for (unsigned int jnt_ctr = 0; jnt_ctr < 6; jnt_ctr++)
     {
         app_data_ptr->target_position[jnt_ctr] = joint_pos[jnt_ctr];
     }
-    std::cout<<"joint_pos 1 : "<<joint_pos[0]<<", joint_pos 2 : "<<joint_pos[1]<<", joint_pos 3 : "<<joint_pos[2]<<std::endl;
+    return 0;
+}
+
+int write_vel_to_drive(double joint_vel[6])
+{
+    for (unsigned int jnt_ctr = 0; jnt_ctr < 6; jnt_ctr++)
+    {
+        app_data_ptr->target_velocity[jnt_ctr] = joint_vel[jnt_ctr];
+    }
+    return 0;
+}
+
+int write_torque_to_drive(double joint_torque[6])
+{
+    for (unsigned int jnt_ctr = 0; jnt_ctr < 6; jnt_ctr++)
+    {
+        app_data_ptr->target_torque[jnt_ctr] = joint_torque[jnt_ctr];
+    }
     return 0;
 }
 

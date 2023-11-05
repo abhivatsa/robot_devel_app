@@ -1,8 +1,8 @@
-#ifndef INSTRUMENT_JOG_H
-#define INSTRUMENT_JOG_H
+#ifndef ROBOT_JOG_H
+#define ROBOT_JOG_H
 
 #include "pt_to_pt_planner.h"
-#include "instrument_motion_planner.h"
+#include "robot_motion_planner.h"
 
 /* pointer to shared memory object */
 motion_planning::ForwardKinematics fk_solver;
@@ -14,8 +14,8 @@ double jog(int index, int dir, int type)
     if (type == 0) // joint space
     {
         /* code */
-        double command_pos[3];
-        double command_vel[3] = {0, 0, 0};
+        double command_pos[6];
+        double command_vel[6] = {0, 0, 0, 0, 0, 0};
         std::copy(std::begin(app_data_ptr->actual_position), std::end(app_data_ptr->actual_position), std::begin(command_pos));
         command_pos[index] = command_pos[index] + dir * 0.001;
         write_to_drive(command_pos, command_vel);

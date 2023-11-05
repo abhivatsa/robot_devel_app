@@ -670,9 +670,6 @@ handControllerMode .onclick = () => {
                 }
         };
         socket.send(JSON.stringify(cmd_obj));
-
-
-
 };
 
 

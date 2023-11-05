@@ -24,7 +24,7 @@
 #include <rapidjson/istreamwrapper.h>
 
 // structer for system data
-enum SystemState
+enum class SystemState
 {
     POWER_OFF,
     INITIALIZING_SYSTEM,
@@ -34,7 +34,7 @@ enum SystemState
     ERROR
 };
 
-enum CommandType{
+enum class CommandType{
     NONE,
     JOG,
     HAND_CONTROL,

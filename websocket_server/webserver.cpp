@@ -68,7 +68,7 @@ private:
 
     void setCommandData(const rapidjson::Value &command_data)
     {
-        int command_type = command_data["type"].GetInt();
+        CommandType command_type = CommandType(command_data["type"].GetInt());
         switch (command_type)
         {
         case CommandType::JOG:
@@ -154,7 +154,7 @@ private:
 
     void setSystemState(rapidjson::Value &document)
     {
-        document["power_on_status"] = system_data_ptr->getSystemState();
+        document["power_on_status"] = static_cast<int>(system_data_ptr->getSystemState());
     }
 };
 

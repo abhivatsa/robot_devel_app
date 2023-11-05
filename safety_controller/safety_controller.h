@@ -43,7 +43,12 @@ double torque_limit[6] = {180, 180, 180, 50, 50, 50};
 int conv_to_target_pos(double rad, int jnt_ctr)
 {
     // input in radians, output in encoder count (SEE Object 0x607A)
-    return (int)(enc_count[jnt_ctr] * gear_ratio[jnt_ctr] * rad / (2 * M_PI)); 
+    if (fabs(rad) > pos_limit[jnt_ctr]){
+        return (int)(enc_count[jnt_ctr] * gear_ratio[jnt_ctr] * (rad/fabs(rad) * pos_limit[jnt_ctr]) / (2 * M_PI));  
+    }
+    else{
+        return (int)(enc_count[jnt_ctr] * gear_ratio[jnt_ctr] * rad / (2 * M_PI)); 
+    }
 }
 
 double conv_to_actual_pos(int count, int jnt_ctr)
@@ -55,7 +60,13 @@ double conv_to_actual_pos(int count, int jnt_ctr)
 int conv_to_target_velocity(double rad_sec, int jnt_ctr)
 {
     // input in rad/sec, Output in rpm (SEE Object 0X60FF)
-    return (int)(rad_sec / (2 * M_PI) * 60 * gear_ratio[jnt_ctr]);
+    if( fabs(rad_sec) > vel_limit[jnt_ctr]){
+        return (int)( (rad_sec/fabs(rad_sec)*vel_limit[jnt_ctr]) / (2 * M_PI) * 60 * gear_ratio[jnt_ctr]);
+    }
+    else{
+        return (int)(rad_sec / (2 * M_PI) * 60 * gear_ratio[jnt_ctr]);
+    }
+    
 }
 
 double conv_to_actual_velocity(int rpm, int jnt_ctr)
@@ -67,6 +78,9 @@ double conv_to_actual_velocity(int rpm, int jnt_ctr)
 int conv_to_target_torque(double torq_val, int jnt_ctr)
 {
     // input is torque in N-m, Output is in per thousand of rated torque (SEE Object 0x6071)
+    if ( fabs(torq_val) > torque_limit[jnt_ctr]){
+        return (int)( (torq_val/fabs(torq_val)*torque_limit[jnt_ctr] ) / (rated_torque[jnt_ctr] * gear_ratio[jnt_ctr]) * 1000);
+    }
     return (int)(torq_val / (rated_torque[jnt_ctr] * gear_ratio[jnt_ctr]) * 1000);
 }
 

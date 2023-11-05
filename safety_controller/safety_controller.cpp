@@ -179,6 +179,7 @@ void write_data()
 
     if (!system_state_data_ptr->trigger_error_mode && system_state_data_ptr->status_operation_enabled)
     {
+        system_state_data_ptr->drive_operation_mode = app_data_ptr->drive_operation_mode;
         for (unsigned int jnt_ctr = 0; jnt_ctr < 6; jnt_ctr++)
         {
             joint_data_ptr->target_position[jnt_ctr] = conv_to_target_pos(app_data_ptr->target_position[jnt_ctr], jnt_ctr);

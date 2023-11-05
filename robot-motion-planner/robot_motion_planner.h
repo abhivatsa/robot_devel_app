@@ -5,10 +5,11 @@
 #include <unistd.h>
 #include <iostream>
 
-int write_to_drive(double joint_pos[3], double joint_vel[3]);
 
 int changeSystemState();
-
+int write_pos_to_drive(double joint_pos[6]);
+int write_vel_to_drive(double joint_vel[6]);
+int write_torque_to_drive(double joint_torque[6]);
 
 
 // structer for system data
@@ -28,8 +29,8 @@ enum class CommandType
     NONE,
     JOG,
     HAND_CONTROL,
-    TEACH_MODE,
-    MOVE_HOME
+    GRAVITY,
+    MOVE_TO
 };
 
 enum class OperationModeState
@@ -122,9 +123,13 @@ struct CommandData
     {
         this->type = CommandType::HAND_CONTROL;
     }
-    void setTeachMode()
+    void setGravity()
     {
-        this->type = CommandType::TEACH_MODE;
+        this->type = CommandType::GRAVITY;
+    }
+    void setHomePos()
+    {
+        this->type = CommandType::MOVE_TO;
     }
     void setNone(){
         this->type = CommandType::NONE;

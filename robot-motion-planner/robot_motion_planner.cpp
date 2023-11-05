@@ -1,6 +1,6 @@
 #include "robot_motion_planner.h"
 #include "robot_jog.h"
-#include "sterile_engagement.h"
+#include "move_to.h"
 #include <stdlib.h>
 #include <fcntl.h>
 #include <sys/shm.h>
@@ -151,14 +151,14 @@ int main()
                     {
 
                     }
-                    else if(commmand_data_ptr->type == CommandType::STERILE_ENGAGEMENT)
-                    {
-                        sterile_engagement();
-                        commmand_data_ptr->setNone();
-                    }
-                    else if(commmand_data_ptr->type == CommandType::INSTRUMENT_ENGAGEMENT)
+                    else if(commmand_data_ptr->type == CommandType::GRAVITY)
                     {
 
+                    }
+                    else if(commmand_data_ptr->type == CommandType::MOVE_TO)
+                    {
+                        app_data_ptr->drive_operation_mode = OperationModeState::POSITION_MODE;
+                        move_to();
                     }
                     else
                     {
@@ -200,6 +200,8 @@ int write_pos_to_drive(double joint_pos[6])
     for (unsigned int jnt_ctr = 0; jnt_ctr < 6; jnt_ctr++)
     {
         app_data_ptr->target_position[jnt_ctr] = joint_pos[jnt_ctr];
+        app_data_ptr->target_velocity[jnt_ctr] = app_data_ptr->actual_velocity[jnt_ctr];
+        app_data_ptr->target_torque[jnt_ctr] = app_data_ptr->actual_torque[jnt_ctr];
     }
     return 0;
 }
@@ -208,7 +210,9 @@ int write_vel_to_drive(double joint_vel[6])
 {
     for (unsigned int jnt_ctr = 0; jnt_ctr < 6; jnt_ctr++)
     {
+        app_data_ptr->target_position[jnt_ctr] = app_data_ptr->actual_position[jnt_ctr];
         app_data_ptr->target_velocity[jnt_ctr] = joint_vel[jnt_ctr];
+        app_data_ptr->target_torque[jnt_ctr] = app_data_ptr->actual_torque[jnt_ctr];
     }
     return 0;
 }
@@ -217,7 +221,10 @@ int write_torque_to_drive(double joint_torque[6])
 {
     for (unsigned int jnt_ctr = 0; jnt_ctr < 6; jnt_ctr++)
     {
+        app_data_ptr->target_position[jnt_ctr] = app_data_ptr->actual_position[jnt_ctr];
+        app_data_ptr->target_velocity[jnt_ctr] = app_data_ptr->actual_velocity[jnt_ctr];
         app_data_ptr->target_torque[jnt_ctr] = joint_torque[jnt_ctr];
+
     }
     return 0;
 }

@@ -160,7 +160,7 @@ int pt_to_pt_mvmt(double ini_pos[6], double final_pos[6])
         time_taken = (end.tv_sec - start.tv_sec) * 1e9;
         time_taken = (time_taken + (end.tv_nsec - start.tv_nsec)) * 1e-9;
 
-        write_to_drive(current_pos, current_vel);
+        write_pos_to_drive(current_pos);
 
         usleep(2000);
     }

@@ -23,22 +23,12 @@ enum class SystemState
     ERROR
 };
 
-enum class ActuatorState
-{
-    NONE,
-    STERILE_MOUNTED,
-    STERILE_ENGAGED,
-    INSTRUMENT_MOUNTED,
-    INSTRUMENT_ENGAGED
-};
-
 enum class CommandType
 {
     NONE,
     JOG,
     HAND_CONTROL,
-    STERILE_ENGAGEMENT,
-    INSTRUMENT_ENGAGEMENT
+    TEACH_MODE
 };
 
 enum class OperationModeState
@@ -62,7 +52,7 @@ struct AppData
         reset_error = false;
         operation_enable_status = false;
 
-        for (int jnt_ctr = 0; jnt_ctr < 3; jnt_ctr++)
+        for (int jnt_ctr = 0; jnt_ctr < 6; jnt_ctr++)
         {
             actual_position[jnt_ctr] = 0;
             actual_velocity[jnt_ctr] = 0;
@@ -73,23 +63,19 @@ struct AppData
             target_torque[jnt_ctr] = 0;
             drive_operation_mode = OperationModeState::POSITION_MODE;
             switched_on = false;
-            sterile_detection = false;
-            instrument_detection = false;
             simulation_mode = false;
         }
     }
 
-    double actual_position[3];
-    double actual_velocity[3];
-    double actual_torque[3];
+    double actual_position[6];
+    double actual_velocity[6];
+    double actual_torque[6];
     double cart_pos[3];
-    double target_position[3];
-    double target_velocity[3];
-    double target_torque[3];
+    double target_position[6];
+    double target_velocity[6];
+    double target_torque[6];
     OperationModeState drive_operation_mode;
     bool switched_on;
-    bool sterile_detection;
-    bool instrument_detection;
     bool simulation_mode;
 
     bool trigger_error;
@@ -107,8 +93,6 @@ struct SystemData
 {
     SystemState getSystemState() const { return system_state; }
     void setSystemState(SystemState state) { previous_state = system_state; system_state = state; }
-    ActuatorState getActuatorState() const { return actuator_state; }
-    void setActuatorState(ActuatorState state) {actuator_state = state; }
     void powerOn() { request = system_state == SystemState::POWER_OFF ? 1 : 0; }
     void powerOff() { request = system_state == SystemState::READY ? -1 : 0; }
 
@@ -122,7 +106,6 @@ struct SystemData
 private:
     SystemState system_state = SystemState::POWER_OFF;
     SystemState previous_state = SystemState::POWER_OFF;
-    ActuatorState actuator_state = ActuatorState::NONE;
 };
 
 struct CommandData
@@ -138,30 +121,29 @@ struct CommandData
     {
         this->type = CommandType::HAND_CONTROL;
     }
-    void setSterileEngagement()
+    void setTeachMode()
     {
-        this->type = CommandType::STERILE_ENGAGEMENT;
-    }
-    void setInstrumentEngagement()
-    {
-        this->type = CommandType::INSTRUMENT_ENGAGEMENT;
+        this->type = CommandType::TEACH_MODE;
     }
     void setNone(){
         this->type = CommandType::NONE;
     }
 
     CommandType type;
+    
     struct
     {
         int index;
         int dir;
         int type;
     } jog_data;
+
     struct
     {
         int type;
         double goal_position[3];
     } move_to_data;
+    
 };
 
 struct ForceDimData

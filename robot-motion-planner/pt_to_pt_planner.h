@@ -6,13 +6,13 @@
 #include "MotionPlanning/Jacobian.h"
 using namespace std;
 
-int pt_to_pt_mvmt(double ini_pos[3], double final_pos[3])
+int pt_to_pt_mvmt(double ini_pos[6], double final_pos[6])
 {
 
-    int num_joints = 3;
+    int num_joints = 6;
 
-    double joint_vel[3] = {0.5, 0.5, 0.5};
-    double joint_acc[3] = {0.5, 0.5, 0.5};
+    double joint_vel[6] = {M_PI/6, M_PI/6, M_PI/6, M_PI/3, M_PI/3, M_PI/3};
+    double joint_acc[6] = {M_PI/3, M_PI/3, M_PI/3, M_PI/3, M_PI/3, M_PI/3};;
 
     // taking care of vel and acceleration sign
     for (int jnt_ctr = 0; jnt_ctr < num_joints; jnt_ctr++)
@@ -83,9 +83,9 @@ int pt_to_pt_mvmt(double ini_pos[3], double final_pos[3])
     }
 
     double t = 0;
-    double current_pos[3] = {0};
-    double current_vel[3] = {0};
-    double current_acc[3] = {0};
+    double current_pos[6] = {0};
+    double current_vel[6] = {0};
+    double current_acc[6] = {0};
 
     // std::cout << "max_time : " << max_time << std::endl;
 

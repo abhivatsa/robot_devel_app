@@ -34,175 +34,130 @@ int main()
 
     joint_data_ptr->setZero();
     system_state_data_ptr->setZero();
-    // app_data_ptr->setZero();  //TODO: Why is it commented?
 
-    // while (app_data_ptr->init_system == -1)
-    // {
-    //     usleep(1000);
-    // }
+    bool run_safety_loop = true;
 
-    // system_state_data_ptr->safety_controller_enabled = true;
-
-    // while (!system_state_data_ptr->start_safety_check)
-    // {
-    //     usleep(1000);
-    // }
-
-    // app_data_ptr->init_system = 1;
-
-    // while (app_data_ptr->init_hardware_check == -1)
-    // {
-    //     usleep(1000);
-    // }
-
-    // while (system_state_data_ptr->current_state == DriveState::SAFETY_CONTROLLER_ENABLED &&
-    //        system_state_data_ptr->current_state != DriveState::READY_FOR_OPERATION) //TODO: Redundent condition, second condition is not required.
-    // {
-    //     check_limits();
-
-    //     system_state_data_ptr->safety_check_done = true;
-    // }
-    // //TODO: If safety check fails then it should go back to Line 46 (probably), 
-    // //so that another saftey check can be performed if needed.
-
-    // if (system_state_data_ptr->current_state != DriveState::READY_FOR_OPERATION) //TODO: Shouldn't this be an equality check? because after successful safety check `current_state` will automatically go to READY_FOR_OPERATION
-    // {
-    //     app_data_ptr->init_hardware_check = 1;
-    // } //It will only go inside if current_state goes in ERROR
-
-    // while (app_data_ptr->init_ready_for_operation == -1) //TODO: will it go inside? After init_hardware_check is set to 1, init_ready_for_operation will become 0 (motion planner Line 221 and 238) 
-    // {
-    //     usleep(1000);
-    //     check_limits();
-    //     read_data();
-    // }
-
-    // if (system_state_data_ptr->current_state == DriveState::OPERATION_ENALBLED)
-    // {
-    //     app_data_ptr->init_ready_for_operation = 1;
-
-    //     check_limits();
-    //     read_data();
-    // }
-
-    // while (system_state_data_ptr->current_state == DriveState::OPERATION_ENALBLED) //TODO: Instead of several if's and while's we can write switch inside a while, so that even if drive goes in error it can repeat the process and main function will not end.
-    // {
-
-    //     check_limits();
-    //     read_data();
-    //     write_data();
-    // }// main function will end if ever drive goes in error
-
-    while(1)
+    while (run_safety_loop)
     {
         switch (system_state_data_ptr->state)
         {
-            case SafetyStates::INITIALIZE:
-            {/* code */
-                system_state_data_ptr->safety_controller_enabled = true;
-                if(system_state_data_ptr->current_state == DriveState::NOT_READY_TO_SWITCH_ON)
+        case SafetyStates::INITIALIZE:
+        { /* code */
+            system_state_data_ptr->safety_controller_enabled = true;
+            if (system_state_data_ptr->current_state == DriveState::NOT_READY_TO_SWITCH_ON)
+            {
+                // send signal to motion planner
+                if (app_data_ptr->initialize_system) // motion planner initialized?
                 {
-                    // send signal to motion planner
-                    if(app_data_ptr->initialize_system) // motion planner initialized?
+                    app_data_ptr->safety_process_status = true;
+                    if (app_data_ptr->initialize_drives) // initialize drive? from  motion planner
                     {
-                        app_data_ptr->safety_process_status = true;
-                        if(app_data_ptr->initialize_drives) // initialize drive? from  motion planner
-                        {
-                            system_state_data_ptr->state = SafetyStates::INITIALIZE_DRIVES;
-                        }
+                        system_state_data_ptr->state = SafetyStates::INITIALIZE_DRIVES;
                     }
                 }
-                break;
             }
-            case SafetyStates::INITIALIZE_DRIVES:
+            break;
+        }
+        case SafetyStates::INITIALIZE_DRIVES:
+        {
+            system_state_data_ptr->initialize_drives = true;
+            if (system_state_data_ptr->current_state == DriveState::SWITCHED_ON)
             {
-                system_state_data_ptr->initialize_drives = true;
-                if(system_state_data_ptr->current_state == DriveState::SWITCHED_ON)
+                app_data_ptr->trigger_error = false;
+                app_data_ptr->drive_initialized = true;
+                if (system_state_data_ptr->start_safety_check)
                 {
-                    app_data_ptr->trigger_error = false;
-                    app_data_ptr->drive_initialized = true;
-                    if(system_state_data_ptr->start_safety_check)
-                    {
-                        system_state_data_ptr->state = SafetyStates::SAFETY_CHECK;
-                    }
+                    system_state_data_ptr->state = SafetyStates::SAFETY_CHECK;
                 }
-
-                if(system_state_data_ptr->current_state == DriveState::ERROR)
-                {
-                    app_data_ptr->trigger_error = true;
-                    app_data_ptr->drive_initialized = true;
-                    // do someting
-                }
-                break;
             }
-            case SafetyStates::SAFETY_CHECK:
+
+            if (system_state_data_ptr->current_state == DriveState::ERROR)
             {
-                if(check_limits())
-                {
-                    system_state_data_ptr->state = SafetyStates::READY_FOR_OPERATION;
-                    app_data_ptr->trigger_error = false;
-                }
-                else
-                {
-                    // safet check failed
-                    app_data_ptr->trigger_error = true;
-                }
-                app_data_ptr->safety_check_done = true;
-                system_state_data_ptr->safety_check_done = true;
-
-
-
-                break;
+                app_data_ptr->trigger_error = true;
+                app_data_ptr->drive_initialized = true;
+                // do someting
             }
-            case SafetyStates::READY_FOR_OPERATION:
+            break;
+        }
+        case SafetyStates::SAFETY_CHECK:
+        {
+            if (check_limits())
             {
-                check_limits();
-                read_data();
+                system_state_data_ptr->state = SafetyStates::READY_FOR_OPERATION;
+                app_data_ptr->trigger_error = false;
+            }
+            else
+            {
+                // safet check failed
+                app_data_ptr->trigger_error = true;
+                run_safety_loop = false;
+            }
+            app_data_ptr->safety_check_done = true;
+            system_state_data_ptr->safety_check_done = true;
 
-                for (int jnt_ctr = 0; jnt_ctr < 6; jnt_ctr++){
+            break;
+        }
+        case SafetyStates::READY_FOR_OPERATION:
+        {
+
+            read_data();
+
+            if (check_limits())
+            {
+
+                for (int jnt_ctr = 0; jnt_ctr < 6; jnt_ctr++)
+                {
                     app_data_ptr->target_position[jnt_ctr] = joint_data_ptr->joint_position[jnt_ctr];
                     app_data_ptr->target_torque[jnt_ctr] = joint_data_ptr->joint_torque[jnt_ctr];
                 }
 
-                if(app_data_ptr->switch_to_operation)// switch to operation? from motion planner
-                {   
+                if (app_data_ptr->switch_to_operation) // switch to operation? from motion planner
+                {
                     system_state_data_ptr->switch_to_operation = true;
-                    if(system_state_data_ptr->current_state == DriveState::OPERATION_ENABLED)
+                    if (system_state_data_ptr->current_state == DriveState::OPERATION_ENABLED)
                     {
                         system_state_data_ptr->state = SafetyStates::OPERATION;
                     }
                 }
-                break;
             }
-            case SafetyStates::OPERATION:
+            else
             {
-                if(system_state_data_ptr->current_state == DriveState::OPERATION_ENABLED)
-                {
-                    app_data_ptr->operation_enable_status = true;
-                    // read write
-                    check_limits();
-                    read_data();
-                    write_data();
-                }
-                else if(system_state_data_ptr->current_state == DriveState::ERROR)
-                {
-                    app_data_ptr->trigger_error = true;
-                    system_state_data_ptr->state = SafetyStates::ERROR;
-                    // send signal to motion planner
-                }
-                break;
+
+                app_data_ptr->trigger_error = true;
+                run_safety_loop = false;
             }
-            case SafetyStates::ERROR:
+
+            break;
+        }
+        case SafetyStates::OPERATION:
+        {
+            if (system_state_data_ptr->current_state == DriveState::OPERATION_ENABLED)
             {
-                app_data_ptr->setZero();
-                if(system_state_data_ptr->current_state == DriveState::SWITCHED_ON)
-                {
-                    system_state_data_ptr->state = SafetyStates::READY_FOR_OPERATION;
-                }
-                break;
-            }   
-            default:
-                break;
+                app_data_ptr->operation_enable_status = true;
+                // read write
+                check_limits();
+                read_data();
+                write_data();
+            }
+            else if (system_state_data_ptr->current_state == DriveState::ERROR)
+            {
+                app_data_ptr->trigger_error = true;
+                system_state_data_ptr->state = SafetyStates::ERROR;
+                // send signal to motion planner
+            }
+            break;
+        }
+        case SafetyStates::ERROR:
+        {
+            app_data_ptr->setZero();
+            if (system_state_data_ptr->current_state == DriveState::SWITCHED_ON)
+            {
+                system_state_data_ptr->state = SafetyStates::READY_FOR_OPERATION;
+            }
+            break;
+        }
+        default:
+            break;
         }
         usleep(1000);
     }
@@ -213,13 +168,10 @@ void read_data()
 
     for (unsigned int jnt_ctr = 0; jnt_ctr < 6; jnt_ctr++)
     {
-        app_data_ptr->actual_position[jnt_ctr] = joint_data_ptr->joint_position[jnt_ctr];
-        app_data_ptr->actual_velocity[jnt_ctr] = joint_data_ptr->joint_velocity[jnt_ctr];
-        app_data_ptr->actual_torque[jnt_ctr] = joint_data_ptr->joint_torque[jnt_ctr];
+        app_data_ptr->actual_position[jnt_ctr] = conv_to_actual_pos(joint_data_ptr->joint_position[jnt_ctr], jnt_ctr);
+        app_data_ptr->actual_velocity[jnt_ctr] = conv_to_actual_velocity(joint_data_ptr->joint_velocity[jnt_ctr], jnt_ctr);
+        app_data_ptr->actual_torque[jnt_ctr] = conv_to_actual_torque(joint_data_ptr->joint_torque[jnt_ctr], jnt_ctr);
     }
-
-    app_data_ptr->sterile_detection = joint_data_ptr->sterile_detection_status;
-    app_data_ptr->instrument_detection = joint_data_ptr->instrument_detection_status;
 }
 
 void write_data()
@@ -229,38 +181,63 @@ void write_data()
     {
         for (unsigned int jnt_ctr = 0; jnt_ctr < 6; jnt_ctr++)
         {
-            joint_data_ptr->target_position[jnt_ctr] = app_data_ptr->target_position[jnt_ctr];
-            joint_data_ptr->target_velocity[jnt_ctr] = app_data_ptr->target_velocity[jnt_ctr];
-            joint_data_ptr->target_torque[jnt_ctr] = app_data_ptr->target_torque[jnt_ctr];
+            joint_data_ptr->target_position[jnt_ctr] = conv_to_target_pos(app_data_ptr->target_position[jnt_ctr], jnt_ctr);
+            joint_data_ptr->target_velocity[jnt_ctr] = conv_to_target_velocity(app_data_ptr->target_velocity[jnt_ctr], jnt_ctr);
+            joint_data_ptr->target_torque[jnt_ctr] = conv_to_target_torque(app_data_ptr->target_torque[jnt_ctr]);
         }
-
     }
 }
 
 bool check_limits()
 {
 
-    if (pos_limit_check(joint_data_ptr->joint_position) == 0)
-    {
-        system_state_data_ptr->trigger_error_mode = false;
-    }
-    else
-    {
-        system_state_data_ptr->trigger_error_mode = true;
-    }
+    system_state_data_ptr->trigger_error_mode = joint_pos_limit_check() &&
+                                                        joint_vel_limit_check() &&
+                                                        joint_torq_limit_check()
+                                                    ? false
+                                                    : true;
 
     return !system_state_data_ptr->trigger_error_mode;
 }
 
-int pos_limit_check(double *joint_pos)
+int joint_pos_limit_check()
 {
 
-    for (unsigned int jnt_ctr = 0; jnt_ctr < 6; jnt_ctr++)
+    for (int jnt_ctr = 0; jnt_ctr < 6; jnt_ctr++)
     {
-        if (fabs(joint_pos[jnt_ctr]) > 2 * M_PI / 3)
+        if ((conv_to_actual_pos(joint_data_ptr->joint_position[jnt_ctr], jnt_ctr)) > pos_limit[jnt_ctr])
         {
-            // return -1; //TODO
+            return 0;
         }
     }
-    return 0;
+
+    return 1;
+}
+
+int joint_vel_limit_check()
+{
+
+    for (int jnt_ctr = 0; jnt_ctr < 6; jnt_ctr++)
+    {
+        if ((conv_to_actual_velocity(joint_data_ptr->joint_velocity[jnt_ctr], jnt_ctr)) > vel_limit[jnt_ctr])
+        {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+int joint_torq_limit_check()
+{
+
+    for (int jnt_ctr = 0; jnt_ctr < 6; jnt_ctr++)
+    {
+        if ((conv_to_actual_torque(joint_data_ptr->joint_torque[jnt_ctr], jnt_ctr)) > torque_limit[jnt_ctr])
+        {
+            return 0;
+        }
+    }
+
+    return 1;
 }

@@ -33,6 +33,50 @@ enum class SafetyStates
     ERROR,
 };
 
+double gear_ratio[6] = {161, 161, 161, 121, 121, 121};
+double rated_torque[6] = {2.08, 2.08, 2.08, 0.62, 0.62, 0.62};
+double enc_count[6] = {524288, 524288, 524288, 262144, 262144, 262144};
+double pos_limit[6] = {0.95*M_PI, M_PI/2, 2*M_PI/3, 0.95*M_PI, 5*M_PI/6, 0.99*M_PI};
+double vel_limit[6] = {M_PI/6, M_PI/6, M_PI/6, M_PI/3, M_PI/3, M_PI/3};
+double torque_limit[6] = {180, 180, 180, 50, 50, 50};
+
+int conv_to_target_pos(double rad, int jnt_ctr)
+{
+    // input in radians, output in encoder count (SEE Object 0x607A)
+    return (int)(enc_count[jnt_ctr] * gear_ratio[jnt_ctr] * rad / (2 * M_PI)); 
+}
+
+double conv_to_actual_pos(int count, int jnt_ctr)
+{
+    // input in encoder count, Output in radians (SEE Object 0x6064)
+    return (count / (enc_count[jnt_ctr] * gear_ratio[jnt_ctr]) * (2 * M_PI)); 
+}
+
+int conv_to_target_velocity(double rad_sec, int jnt_ctr)
+{
+    // input in rad/sec, Output in rpm (SEE Object 0X60FF)
+    return (int)(rad_sec / (2 * M_PI) * 60 * gear_ratio[jnt_ctr]);
+}
+
+double conv_to_actual_velocity(int rpm, int jnt_ctr)
+{
+    // input in rpm , Output in rad/sec SEE Object (0x606C)
+    return (2 * M_PI * rpm / (60 * gear_ratio[jnt_ctr]));
+}
+
+int conv_to_target_torque(double torq_val, int jnt_ctr)
+{
+    // input is torque in N-m, Output is in per thousand of rated torque (SEE Object 0x6071)
+    return (int)(torq_val / (rated_torque[jnt_ctr] * gear_ratio[jnt_ctr]) * 1000);
+}
+
+double conv_to_actual_torque(int torq_val, int jnt_ctr)
+{
+    // input torq in terms of per thousand of rated torque, Output is in N-m (SEE object 0x6077)
+    return (torq_val / 1000 * rated_torque[jnt_ctr] * gear_ratio[jnt_ctr]);
+}
+
+
 struct JointData
 {
 
@@ -46,19 +90,15 @@ struct JointData
             target_position[jnt_ctr] = 0;
             target_velocity[jnt_ctr] = 0;
             target_torque[jnt_ctr] = 0;
-            sterile_detection_status = false;
-            instrument_detection_status = false;
         }
     }
 
-    double joint_position[6];
-    double joint_velocity[6];
-    double joint_torque[6];
-    double target_position[6];
-    double target_velocity[6];
-    double target_torque[6];
-    bool sterile_detection_status;
-    bool instrument_detection_status;
+    int joint_position[6];
+    int joint_velocity[6];
+    int joint_torque[6];
+    int target_position[6];
+    int target_velocity[6];
+    int target_torque[6];
 };
 
 struct AppData
@@ -86,8 +126,6 @@ struct AppData
             target_torque[jnt_ctr] = 0;
             drive_operation_mode = OperationModeState::POSITION_MODE;
             switched_on = false;
-            sterile_detection = false;
-            instrument_detection = false;
             simulation_mode = false;
         }
     }
@@ -101,8 +139,6 @@ struct AppData
     double target_torque[6];
     OperationModeState drive_operation_mode;
     bool switched_on;
-    bool sterile_detection;
-    bool instrument_detection;
     bool simulation_mode;
 
     bool trigger_error;
@@ -166,8 +202,12 @@ JointData *joint_data_ptr;
 SystemStateData *system_state_data_ptr;
 AppData *app_data_ptr;
 
-int pos_limit_check(double *joint_pos);
 
 void read_data();
 void write_data();
 bool check_limits();
+
+int joint_pos_limit_check();
+int joint_vel_limit_check();
+int joint_torq_limit_check();
+

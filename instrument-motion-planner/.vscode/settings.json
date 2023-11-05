@@ -1,6 +1,5 @@
 {
     "files.associations": {
-        "ostream": "cpp",
         "cctype": "cpp",
         "clocale": "cpp",
         "cmath": "cpp",
@@ -71,6 +70,7 @@
         "mutex": "cpp",
         "new": "cpp",
         "numbers": "cpp",
+        "ostream": "cpp",
         "ranges": "cpp",
         "scoped_allocator": "cpp",
         "semaphore": "cpp",

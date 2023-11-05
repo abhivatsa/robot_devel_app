@@ -70,7 +70,9 @@ void cyclic_task()
 
     clock_gettime(CLOCK_TO_USE, &wakeupTime);
 
-    while (1)
+    bool run_ethercat_loop = true;
+
+    while (run_ethercat_loop)
     {
         wakeupTime = timespec_add(wakeupTime, cycletime);
         clock_nanosleep(CLOCK_TO_USE, TIMER_ABSTIME, &wakeupTime, NULL);
@@ -155,9 +157,7 @@ void cyclic_task()
         // ************ For Domain 1 **************
 
         int domain1_slave_cnt = 6;
-        static uint16_t domain1_command[6] = {0};
-
-        // std::cout<<"system_state_data_ptr->current_state: "<<system_state_data_ptr->current_state<<std::endl;
+        static uint16_t domain1_command[6] = {0, 0, 0, 0, 0, 0};
 
         switch (system_state_data_ptr->current_state)
         {
@@ -186,7 +186,7 @@ void cyclic_task()
                 if ((((drive_status | 65456) ^ 65471) == 0) || (((drive_status | 65456) ^ 65464) == 0))
                 {
                     system_state_data_ptr->current_state = DriveState::ERROR;
-                    std::cout<<"Drive inside error \n";
+                    std::cout << "Drive inside error \n";
                     break;
                 }
 
@@ -226,17 +226,19 @@ void cyclic_task()
                 {
                     for (int jnt_ctr = 0; jnt_ctr < 6; jnt_ctr++)
                     {
-                        joint_data_ptr->joint_position[jnt_ctr] = conv_count_to_rad(EC_READ_S32(domain1_pd + drive_offset[jnt_ctr].position_actual_value));
-                        joint_data_ptr->joint_velocity[jnt_ctr] = conv_mrev_sec_to_rad_sec(EC_READ_S32(domain1_pd + drive_offset[jnt_ctr].velocity_actual_value));
+                        joint_data_ptr->joint_position[jnt_ctr] = EC_READ_S32(domain1_pd + drive_offset[jnt_ctr].position_actual_value);
+                        joint_data_ptr->joint_velocity[jnt_ctr] = EC_READ_S32(domain1_pd + drive_offset[jnt_ctr].velocity_actual_value);
                         joint_data_ptr->joint_torque[jnt_ctr] = 0;
                     }
                     system_state_data_ptr->start_safety_check = true;
 
-
                     if (system_state_data_ptr->safety_check_done)
                     {
                         if (system_state_data_ptr->trigger_error_mode)
-                            system_state_data_ptr->current_state = DriveState::ERROR;
+                        {
+                            // system_state_data_ptr->current_state = DriveState::ERROR;
+                            run_ethercat_loop = false;
+                        }
                         else
                         {
                             if (system_state_data_ptr->switch_to_operation)
@@ -257,126 +259,144 @@ void cyclic_task()
         }
         case DriveState::SWITCH_TO_OPERATION: // Automatic switch to operation enabled after enabling all motors
         {
-            for (unsigned int jnt_ctr = 0; jnt_ctr < 6; jnt_ctr++)
+
+            if (system_state_data_ptr->trigger_error_mode)
             {
-                uint16_t drive_status = EC_READ_U16(domain1_pd + drive_offset[jnt_ctr].statusword);
-                read_drive_state(drive_status, jnt_ctr);
-
-                if ((((drive_status | 65456) ^ 65471) == 0) || ((drive_status | 65456) ^ 65464) == 0)
-                {
-                    system_state_data_ptr->current_state = DriveState::ERROR;
-                }
-
-                joint_data_ptr->target_position[jnt_ctr] = joint_data_ptr->joint_position[jnt_ctr];
-
-                EC_WRITE_U16(domain1_pd + drive_offset[jnt_ctr].controlword, 15);
-                EC_WRITE_U16(domain1_pd + drive_offset[jnt_ctr].modes_of_operation, 8);
-                EC_WRITE_S32(domain1_pd + drive_offset[jnt_ctr].target_position, conv_radians_to_count(joint_data_ptr->joint_position[jnt_ctr]));
-
-                if (((drive_status | 65424) ^ 65463) == 0)
-                {
-                    system_state_data_ptr->drive_enable_for_operation[jnt_ctr] = true;
-                    std::cout << "drive_enable_for_operation [" << jnt_ctr << "] : " << true << std::endl;
-                }
+                run_ethercat_loop = false;
             }
-
-            if (!(system_state_data_ptr->current_state == DriveState::ERROR))
-            {
-
-                system_state_data_ptr->current_state = system_state_data_ptr->drive_enable_for_operation[0] &&
-                                                               system_state_data_ptr->drive_enable_for_operation[1] &&
-                                                               system_state_data_ptr->drive_enable_for_operation[2] &&
-                                                               system_state_data_ptr->drive_enable_for_operation[3] &&
-                                                               system_state_data_ptr->drive_enable_for_operation[4] &&
-                                                               system_state_data_ptr->drive_enable_for_operation[5] 
-                                                           ? DriveState::OPERATION_ENABLED
-                                                           : DriveState::SWITCH_TO_OPERATION;
-            }
-
-            break;
-        }
-        case DriveState::OPERATION_ENABLED:
-        {
-            system_state_data_ptr->status_operation_enabled = true;
-
-            for (unsigned int jnt_ctr = 0; jnt_ctr < 6; jnt_ctr++)
-            {
-                joint_data_ptr->joint_position[jnt_ctr] = conv_count_to_rad(EC_READ_S32(domain1_pd + drive_offset[jnt_ctr].position_actual_value));
-                joint_data_ptr->joint_velocity[jnt_ctr] = conv_mrev_sec_to_rad_sec(EC_READ_S32(domain1_pd + drive_offset[jnt_ctr].velocity_actual_value));
-                joint_data_ptr->joint_torque[jnt_ctr] = conv_to_actual_torque(EC_READ_S16(domain1_pd + drive_offset[jnt_ctr].torque_actual_value));
-            }
-
-            joint_data_ptr->sterile_detection_status = true;
-            joint_data_ptr->instrument_detection_status = true;
-
-            switch (system_state_data_ptr->drive_operation_mode)
-            {
-
-            case OperationModeState::POSITION_MODE:
+            else
             {
 
                 for (unsigned int jnt_ctr = 0; jnt_ctr < 6; jnt_ctr++)
                 {
                     uint16_t drive_status = EC_READ_U16(domain1_pd + drive_offset[jnt_ctr].statusword);
+                    read_drive_state(drive_status, jnt_ctr);
 
                     if ((((drive_status | 65456) ^ 65471) == 0) || ((drive_status | 65456) ^ 65464) == 0)
                     {
                         system_state_data_ptr->current_state = DriveState::ERROR;
                     }
 
+                    joint_data_ptr->target_position[jnt_ctr] = joint_data_ptr->joint_position[jnt_ctr];
+
+                    EC_WRITE_U16(domain1_pd + drive_offset[jnt_ctr].controlword, 15);
                     EC_WRITE_U16(domain1_pd + drive_offset[jnt_ctr].modes_of_operation, 8);
-                    EC_WRITE_S32(domain1_pd + drive_offset[jnt_ctr].target_position, conv_radians_to_count(joint_data_ptr->target_position[jnt_ctr]));
+                    EC_WRITE_S32(domain1_pd + drive_offset[jnt_ctr].target_position, joint_data_ptr->joint_position[jnt_ctr]);
+
+                    if (((drive_status | 65424) ^ 65463) == 0)
+                    {
+                        system_state_data_ptr->drive_enable_for_operation[jnt_ctr] = true;
+                        std::cout << "drive_enable_for_operation [" << jnt_ctr << "] : " << true << std::endl;
+                    }
                 }
 
-                break;
-            }
-
-            case OperationModeState::VELOCITY_MODE:
-            {
-
-                for (unsigned int jnt_ctr = 0; jnt_ctr < 6; jnt_ctr++)
+                if (!(system_state_data_ptr->current_state == DriveState::ERROR))
                 {
-                    uint16_t drive_status = EC_READ_U16(domain1_pd + drive_offset[jnt_ctr].statusword);
-                    EC_WRITE_U16(domain1_pd + drive_offset[jnt_ctr].modes_of_operation, 9);
+
+                    system_state_data_ptr->current_state = system_state_data_ptr->drive_enable_for_operation[0] &&
+                                                                   system_state_data_ptr->drive_enable_for_operation[1] &&
+                                                                   system_state_data_ptr->drive_enable_for_operation[2] &&
+                                                                   system_state_data_ptr->drive_enable_for_operation[3] &&
+                                                                   system_state_data_ptr->drive_enable_for_operation[4] &&
+                                                                   system_state_data_ptr->drive_enable_for_operation[5]
+                                                               ? DriveState::OPERATION_ENABLED
+                                                               : DriveState::SWITCH_TO_OPERATION;
                 }
-
-                break;
             }
 
-            case OperationModeState::TORQUE_MODE:
-            {
-
-                for (unsigned int jnt_ctr = 0; jnt_ctr < 6; jnt_ctr++)
-                {
-                    uint16_t drive_status = EC_READ_U16(domain1_pd + drive_offset[jnt_ctr].statusword);
-                    EC_WRITE_U16(domain1_pd + drive_offset[jnt_ctr].modes_of_operation, 10);
-                }
-
-                break;
-            }
-            }
             break;
+        }
+        case DriveState::OPERATION_ENABLED:
+        {
+            if (system_state_data_ptr->trigger_error_mode)
+            {
+                run_ethercat_loop = false;
+            }
+            else
+            {
+
+                system_state_data_ptr->status_operation_enabled = true;
+
+                for (unsigned int jnt_ctr = 0; jnt_ctr < 6; jnt_ctr++)
+                {
+                    joint_data_ptr->joint_position[jnt_ctr] = EC_READ_S32(domain1_pd + drive_offset[jnt_ctr].position_actual_value);
+                    joint_data_ptr->joint_velocity[jnt_ctr] = EC_READ_S32(domain1_pd + drive_offset[jnt_ctr].velocity_actual_value);
+                    joint_data_ptr->joint_torque[jnt_ctr] = EC_READ_S16(domain1_pd + drive_offset[jnt_ctr].torque_actual_value);
+                }
+
+                switch (system_state_data_ptr->drive_operation_mode)
+                {
+
+                case OperationModeState::POSITION_MODE:
+                {
+
+                    for (unsigned int jnt_ctr = 0; jnt_ctr < 6; jnt_ctr++)
+                    {
+                        uint16_t drive_status = EC_READ_U16(domain1_pd + drive_offset[jnt_ctr].statusword);
+
+                        if ((((drive_status | 65456) ^ 65471) == 0) || ((drive_status | 65456) ^ 65464) == 0)
+                        {
+                            system_state_data_ptr->current_state = DriveState::ERROR;
+                        }
+
+                        EC_WRITE_U16(domain1_pd + drive_offset[jnt_ctr].modes_of_operation, 8);
+                        EC_WRITE_S32(domain1_pd + drive_offset[jnt_ctr].target_position, joint_data_ptr->target_position[jnt_ctr]);
+                    }
+
+                    break;
+                }
+
+                case OperationModeState::VELOCITY_MODE:
+                {
+
+                    for (unsigned int jnt_ctr = 0; jnt_ctr < 6; jnt_ctr++)
+                    {
+                        uint16_t drive_status = EC_READ_U16(domain1_pd + drive_offset[jnt_ctr].statusword);
+                        EC_WRITE_U16(domain1_pd + drive_offset[jnt_ctr].modes_of_operation, 9);
+                    }
+
+                    break;
+                }
+
+                case OperationModeState::TORQUE_MODE:
+                {
+
+                    for (unsigned int jnt_ctr = 0; jnt_ctr < 6; jnt_ctr++)
+                    {
+                        uint16_t drive_status = EC_READ_U16(domain1_pd + drive_offset[jnt_ctr].statusword);
+                        EC_WRITE_U16(domain1_pd + drive_offset[jnt_ctr].modes_of_operation, 10);
+                    }
+
+                    break;
+                }
+                }
+                break;
+            }
         }
         case DriveState::ERROR:
         {
-            // system_state_data_ptr->current_state = DriveState::SWITCHED_ON;
-            std::cout<<"Drive inside error state line365\n";
-            DriveState local_state = DriveState::SWITCHED_ON;
-            system_state_data_ptr->state = SafetyStates::ERROR;
-            for (unsigned int jnt_ctr = 0; jnt_ctr < 6; jnt_ctr++)
+            if (system_state_data_ptr->trigger_error_mode)
             {
-                uint16_t drive_status = EC_READ_U16(domain1_pd + drive_offset[jnt_ctr].statusword);
-                if ((((drive_status | 65456) ^ 65471) == 0) || ((drive_status | 65456) ^ 65464) == 0)
-                {
-                    EC_WRITE_U16(domain1_pd + drive_offset[jnt_ctr].controlword, 128);
-                    local_state = DriveState::ERROR;
-                    std::cout<<"Drive inside error : "<<jnt_ctr<<"\n";
-                    // system_state_data_ptr->current_state = DriveState::ERROR;
-                }
+                run_ethercat_loop = false;
             }
-            system_state_data_ptr->current_state = local_state;
+            else
+            {
+                DriveState local_state = DriveState::SWITCHED_ON;
+                system_state_data_ptr->state = SafetyStates::ERROR;
+                for (unsigned int jnt_ctr = 0; jnt_ctr < 6; jnt_ctr++)
+                {
+                    uint16_t drive_status = EC_READ_U16(domain1_pd + drive_offset[jnt_ctr].statusword);
+                    if ((((drive_status | 65456) ^ 65471) == 0) || ((drive_status | 65456) ^ 65464) == 0)
+                    {
+                        EC_WRITE_U16(domain1_pd + drive_offset[jnt_ctr].controlword, 128);
+                        local_state = DriveState::ERROR;
+                        std::cout << "Drive inside error : " << jnt_ctr << "\n";
+                        // system_state_data_ptr->current_state = DriveState::ERROR;
+                    }
+                }
+                system_state_data_ptr->current_state = local_state;
+            }
 
-            // system_state_data_ptr->current_state = DriveState::DISABLED; // or swichted on state
             break;
         }
         default:
@@ -473,6 +493,12 @@ void pdo_mapping(ec_slave_config_t *sc)
     ecrt_slave_config_pdo_mapping_add(sc, 0x1600, 0x60B2, 0, 16); /* 0x60B2:0/16bits, torque offset */
     ecrt_slave_config_pdo_mapping_add(sc, 0x1600, 0x60B1, 0, 32); /* 0x60B1:0/32bits, velocity offset */
 
+    ecrt_slave_config_pdo_mapping_add(sc, 0x1601, 0x60FE, 1, 32); /* 0x60FE:1/32bits, Digital Physical Outputs */
+    ecrt_slave_config_pdo_mapping_add(sc, 0x1601, 0x60FE, 2, 32); /* 0x60FE:2/32bits, Digital Output bit Mask */
+
+    ecrt_slave_config_pdo_mapping_add(sc, 0x1602, 0x2214, 1, 8);  /* 0x2214:1/8bits, gpio_global_option */
+    ecrt_slave_config_pdo_mapping_add(sc, 0x1602, 0x2215, 1, 32); /* 0x2215:1/32bits, led_colour*/
+
     /* Define TxPdo */
 
     ecrt_slave_config_sync_manager(sc, 3, EC_DIR_INPUT, EC_WD_ENABLE);
@@ -493,7 +519,7 @@ void pdo_mapping(ec_slave_config_t *sc)
     ecrt_slave_config_pdo_mapping_add(sc, 0x1A00, 0x606C, 0, 32); /* 0x606C:0/32bits, velocity_actual_value */
     ecrt_slave_config_pdo_mapping_add(sc, 0x1A00, 0x6077, 0, 16); /* 0x6077:0/16bits, Torque Actual Value */
 
-    ecrt_slave_config_pdo_mapping_add(sc, 0x1A01, 0x2600, 0, 32); /* 0x60FD:0/32bits, Digital Inputs */
+    ecrt_slave_config_pdo_mapping_add(sc, 0x1A01, 0x60FD, 0, 32); /* 0x60FD:0/32bits, Digital Inputs */
     ecrt_slave_config_pdo_mapping_add(sc, 0x1A01, 0x603F, 0, 16); /* 0x603F:0/16bits, Error Code */
 }
 
@@ -532,13 +558,13 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    int local_pos = 1;
+    int local_pos = 0;
 
     for (uint16_t jnt_ctr = DOMAIN1_START; jnt_ctr < DOMAIN1_END; jnt_ctr++)
     {
         ec_slave_config_t *sc;
 
-        if (!(sc = ecrt_master_slave_config(master, 0, jnt_ctr, ingenia_denalli_xcr)))
+        if (!(sc = ecrt_master_slave_config(master, 0, jnt_ctr, synapticon_circulo)))
         {
             fprintf(stderr, "Failed to get slave configuration.\n");
             return -1;
@@ -546,24 +572,26 @@ int main(int argc, char **argv)
 
         pdo_mapping(sc);
 
-        std::cout << "jnt_ctr : " << jnt_ctr << ", local_pos : " << local_pos << std::endl;
-
         ec_pdo_entry_reg_t domain_regs[] = {
 
-            {0, jnt_ctr, ingenia_denalli_xcr, 0x6041, 0, &drive_offset[jnt_ctr - local_pos].statusword},                // 6041 0 statusword
-            {0, jnt_ctr, ingenia_denalli_xcr, 0x6061, 0, &drive_offset[jnt_ctr - local_pos].mode_of_operation_display}, // 6061 0 mode_of_operation_display
-            {0, jnt_ctr, ingenia_denalli_xcr, 0x6064, 0, &drive_offset[jnt_ctr - local_pos].position_actual_value},     // 6064 0 pos_act_val
-            {0, jnt_ctr, ingenia_denalli_xcr, 0x606C, 0, &drive_offset[jnt_ctr - local_pos].velocity_actual_value},     // 606C 0 vel_act_val
-            {0, jnt_ctr, ingenia_denalli_xcr, 0x6077, 0, &drive_offset[jnt_ctr - local_pos].torque_actual_value},       // 6077 0 torq_act_val
-            {0, jnt_ctr, ingenia_denalli_xcr, 0x2600, 0, &drive_offset[jnt_ctr - local_pos].digital_input_value},       // 60FD 0 digital_input_value
-            {0, jnt_ctr, ingenia_denalli_xcr, 0x603F, 0, &drive_offset[jnt_ctr - local_pos].error_code},                // 603F 0 digital_input_value
-            {0, jnt_ctr, ingenia_denalli_xcr, 0x6040, 0, &drive_offset[jnt_ctr - local_pos].controlword},               // 6040 0 control word
-            {0, jnt_ctr, ingenia_denalli_xcr, 0x6060, 0, &drive_offset[jnt_ctr - local_pos].modes_of_operation},        // 6060 0 mode_of_operation
-            {0, jnt_ctr, ingenia_denalli_xcr, 0x6071, 0, &drive_offset[jnt_ctr - local_pos].target_torque},             // 6071 0 target torque
-            {0, jnt_ctr, ingenia_denalli_xcr, 0x607A, 0, &drive_offset[jnt_ctr - local_pos].target_position},           // 607A 0 target position
-            {0, jnt_ctr, ingenia_denalli_xcr, 0x60FF, 0, &drive_offset[jnt_ctr - local_pos].target_velocity},           // 60FF 0 target velocity
-            {0, jnt_ctr, ingenia_denalli_xcr, 0x60B2, 0, &drive_offset[jnt_ctr - local_pos].torque_offset},
-            {0, jnt_ctr, ingenia_denalli_xcr, 0x60B1, 0, &drive_offset[jnt_ctr - local_pos].velocity_offset}, // 60B2 0 torque offset
+            {0, jnt_ctr, synapticon_circulo, 0x6041, 0, &drive_offset[jnt_ctr - local_pos].statusword},                // 6041 0 statusword
+            {0, jnt_ctr, synapticon_circulo, 0x6061, 0, &drive_offset[jnt_ctr - local_pos].mode_of_operation_display}, // 6061 0 mode_of_operation_display
+            {0, jnt_ctr, synapticon_circulo, 0x6064, 0, &drive_offset[jnt_ctr - local_pos].position_actual_value},     // 6064 0 pos_act_val
+            {0, jnt_ctr, synapticon_circulo, 0x606C, 0, &drive_offset[jnt_ctr - local_pos].velocity_actual_value},     // 606C 0 vel_act_val
+            {0, jnt_ctr, synapticon_circulo, 0x6077, 0, &drive_offset[jnt_ctr - local_pos].torque_actual_value},       // 6077 0 torq_act_val
+            {0, jnt_ctr, synapticon_circulo, 0x60FD, 0, &drive_offset[jnt_ctr - local_pos].digital_input_value},       // 60FD 0 digital_input_value
+            {0, jnt_ctr, synapticon_circulo, 0x603F, 0, &drive_offset[jnt_ctr - local_pos].error_code},                // 603F 0 digital_input_value
+            {0, jnt_ctr, synapticon_circulo, 0x6040, 0, &drive_offset[jnt_ctr - local_pos].controlword},               // 6040 0 control word
+            {0, jnt_ctr, synapticon_circulo, 0x6060, 0, &drive_offset[jnt_ctr - local_pos].modes_of_operation},        // 6060 0 mode_of_operation
+            {0, jnt_ctr, synapticon_circulo, 0x6071, 0, &drive_offset[jnt_ctr - local_pos].target_torque},             // 6071 0 target torque
+            {0, jnt_ctr, synapticon_circulo, 0x607A, 0, &drive_offset[jnt_ctr - local_pos].target_position},           // 607A 0 target position
+            {0, jnt_ctr, synapticon_circulo, 0x60FF, 0, &drive_offset[jnt_ctr - local_pos].target_velocity},           // 60FF 0 target velocity
+            {0, jnt_ctr, synapticon_circulo, 0x60B2, 0, &drive_offset[jnt_ctr - local_pos].torque_offset},
+            {0, jnt_ctr, synapticon_circulo, 0x60B1, 0, &drive_offset[jnt_ctr - local_pos].velocity_offset},         // 60B2 0 torque offset
+            {0, jnt_ctr, synapticon_circulo, 0x60FE, 1, &drive_offset[jnt_ctr - local_pos].digital_physical_output}, // 60FE 1 digital_output_value
+            {0, jnt_ctr, synapticon_circulo, 0x60FE, 2, &drive_offset[jnt_ctr - local_pos].digital_output_bit_mask}, // 60FE 2 digital_output_bit_mask
+            {0, jnt_ctr, synapticon_circulo, 0x2214, 1, &drive_offset[jnt_ctr - local_pos].gpio_global_option},      // 60FE 1 digital_output_value
+            {0, jnt_ctr, synapticon_circulo, 0x2215, 1, &drive_offset[jnt_ctr - local_pos].led_colour},              // 60FE 2 digital_output_bit_mask
             {}
 
         };

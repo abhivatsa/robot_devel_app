@@ -72,10 +72,6 @@
 #define NSEC_PER_SEC (1000000000)
 #define FREQUENCY (NSEC_PER_SEC / PERIOD_NS)
 
-// MOTOR_TYPE = 0 for Kollmorgen 25 and 17 
-// MOTOR_TYPE = 1 for 
-#define MOTOR_TYPE 0
-
 bool operation_enable_status[6] = {true, true, true, true, true, true};
 
 /****************************************************************************/
@@ -121,74 +117,6 @@ struct joint_pdos
     unsigned int gpio_global_option;
     unsigned int led_colour;
 } drive_offset[6];
-
-#if MOTOR_TYPE == 0
-double gear_ratio_25 = 161;
-double rated_torque_25 = 2.08;
-double enc_count_25 = 524288;
-double gear_ratio_17 = 121;
-double rated_torque_17 = 0.62;
-double enc_count_17 = 262144;
-#elif MOTOR_TYPE == 1
-double gear_ratio = 12825/208;
-double rated_torque = 0.0227;
-double enc_count = 2048;
-#else
-double gear_ratio = 50;
-double rated_torque = 0.02;
-double enc_count = 4096;
-#endif
-
-int conv_radians_to_count(double rad, int jnt_ctr)
-{
-    if (jnt_ctr < 3){
-        return (int)(enc_count_25 * gear_ratio_25 * rad / (2 * M_PI));
-    }
-    else{
-        return (int)(enc_count_17 * gear_ratio_17 * rad / (2 * M_PI));
-    }
-}
-
-double conv_count_to_rad(int count, int jnt_ctr)
-{
-    if (jnt_ctr < 3){
-        return (count / (enc_count_25 * gear_ratio_25) * (2 * M_PI));  
-    }
-    else{
-        return (count / (enc_count_17 * gear_ratio_17) * (2 * M_PI));
-    }
-}
-
-// Needs to be checked from Drive Side for Unit and Formula also not correct
-int conv_rad_sec_to_mrev_sec(double rad_sec, int jnt_ctr)
-{
-    if (jnt_ctr < 3){
-        return (rad_sec / (2 * M_PI));
-    }
-    else{
-        return (rad_sec / (2 * M_PI));
-    }
-}
-
-double conv_mrev_sec_to_rad_sec(int mrev_sec, int jnt_ctr)
-{
-    if(jnt_ctr < 3){
-        return (2 * M_PI * mrev_sec / 1000);
-    }
-    else{
-        return (2 * M_PI * mrev_sec / 1000);
-    }
-}
-
-double conv_to_actual_torque(int torq_val, int jnt_ctr)
-{
-    if (jnt_ctr < 3){
-        return (torq_val / 1000 * rated_torque_25 * gear_ratio_25);
-    }
-    else{
-        return (torq_val / 1000 * rated_torque_17 * gear_ratio_17);
-    }
-}
 
 /****************************************************************************/
 

@@ -35,8 +35,6 @@ struct JointData
     double target_position[6];
     double target_velocity[6];
     double target_torque[6];
-    bool sterile_detection_status;
-    bool instrument_detection_status;
 };
 
 enum class DriveState
